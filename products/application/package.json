@@ -1,0 +1,7 @@
+{
+  "name": "trademind-academy-final",
+  "private": true,
+  "type": "module",
+  "scripts": {"start":"node server.mjs", "dev":"node --watch server.mjs", "build":"node --check server.mjs && node --check public/auth.js"},
+  "engines": {"node": ">=20"}
+}

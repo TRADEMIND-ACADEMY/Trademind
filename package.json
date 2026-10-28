@@ -1,0 +1,18 @@
+{
+  "name": "trademind-academy-final-delivery",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "build": "node scripts/build-check.mjs",
+    "check": "node --check server.mjs && node --check server/app.mjs && node --check server/local-env.mjs && node --check server/billing.mjs && node --check server/accounts.mjs && node --check server/security.mjs && node --check server/dan.mjs && node --check server/nowpayments.mjs && node --check server/payment-config.mjs && node --check server/sync.mjs && node --check products/application/public/tmsync-core.js && node --check products/application/public/tmsync.js && node --check products/application/public/pw-eye.js && node --check public/sw.js && node --check products/application/public/payment.js && node --check products/application/public/ui.js && node --check products/application/public/qr.js && node --check products/application/public/pwa.js && node --check products/public-site/assets/site.js && node --check products/control-center/assets/owner.js",
+    "start": "node server.mjs",
+    "test": "node tests/sync-api.test.mjs && node tests/core-clients.test.mjs && node tests/netlify-function.test.mjs",
+    "netlify:build": "node scripts/netlify-build.mjs",
+    "netlify:check": "node scripts/netlify-build.mjs && node --check netlify/functions/api.mjs && node --check scripts/migrate-to-blobs.mjs && node --check scripts/source-hash.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.2.0"
+  }
+}
