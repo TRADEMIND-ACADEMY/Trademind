@@ -94,7 +94,16 @@ async function callOne(step, model, system, history, message, signal, env) {
     if (/2\.5/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
     const contents = [...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), { role: "user", parts: [{ text: message }] }];
     const response = await fetch(`${base}/${encodeURIComponent(model)}:generateContent`, { method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": step.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig }) });
-    if (!response.ok) return { status: response.status };
+    if (!response.ok) {
+      if (response.status === 404) { // modèle absent : on cherche un modèle disponible pour cette clé
+        try {
+          const l = await fetch(`${base}?pageSize=200`, { signal, headers: { "x-goog-api-key": step.key } }); const lj = l.ok ? await l.json() : null;
+          const alt = (lj?.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => String(m.name).replace(/^models\//, "")).filter(n => /^gemini-/.test(n) && n !== model && !/(image|tts|audio|live|embedding|vision|thinking|robotics|computer|preview|exp)/.test(n)).sort((a, b) => (/lite/.test(a) - /lite/.test(b)) || b.localeCompare(a))[0];
+          if (alt) { const r2 = await fetch(`${base}/${encodeURIComponent(alt)}:generateContent`, { method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": step.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig }) }); if (r2.ok) { const d2 = await r2.json(); const p2 = d2?.candidates?.[0]?.content?.parts; return { reply: Array.isArray(p2) ? p2.map(x => typeof x?.text === "string" ? x.text : "").join("").trim().slice(0, 4000) : "" }; } }
+        } catch { /* on retombe sur le statut d'origine */ }
+      }
+      return { status: response.status };
+    }
     const data = await response.json();
     const parts = data?.candidates?.[0]?.content?.parts;
     return { reply: Array.isArray(parts) ? parts.map(part => typeof part?.text === "string" ? part.text : "").join("").trim().slice(0, 4000) : "" };
