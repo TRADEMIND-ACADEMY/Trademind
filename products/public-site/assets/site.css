@@ -62,3 +62,17 @@ h3,.problem-grid h3,.plan-card h3{font-size:clamp(17px,.45vw + 14.5px,21px)!impo
 
 /* Accessibilité WCAG 2.1 AA — indicateur de focus clavier visible (contraste >= 3:1 sur les deux thèmes). */
 a:focus-visible,button:focus-visible,summary:focus-visible,.button:focus-visible{outline:2px solid var(--accent-text);outline-offset:3px;border-radius:8px}
+
+
+/* Typographie adaptative (Phase F) — texte un peu plus grand, paragraphes plus lisibles, boutons confortables. */
+body{font-size:clamp(15px,.25vw + 14.2px,16.5px);line-height:1.65}
+.hero-lede{font-size:clamp(15px,.4vw + 13.6px,18px)!important;line-height:1.65!important}
+.section p,.capability p,.plan-card p,.about p,.statement p,.final-cta p{line-height:1.65}
+.statement h2,.about h2,.section-heading h2,.final-cta h2,main h2{font-size:clamp(25px,1.8vw + 16.5px,42px)!important}
+h3,.problem-grid h3,.plan-card h3{font-size:clamp(17.5px,.5vw + 15px,22px)!important}
+.button,.site-actions .button{min-height:44px;font-size:clamp(14px,.25vw + 13.4px,16px)}
+.plan-card ul{font-size:clamp(12.5px,.25vw + 11.8px,14.5px)}
+
+/* Plancher de lisibilité : aucun texte visible sous 10,5 px (éléments décoratifs de l'aperçu inclus). */
+.card-top span,.hero-card-stats small,.node small,.hero-caption,.preview-window-head span,.preview-balance small,.preview-footer span,.preview-footer b,.preview-row small,.guardian-state small,.dan-preview small,.panel-line span,.footer-brand span,.site-footer small,.node b{font-size:max(10.5px,0px)}
+.site-brand small,.site-brand span small{font-size:10.5px}

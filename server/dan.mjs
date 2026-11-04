@@ -59,33 +59,73 @@ export function buildSystemPrompt({ lang, tier, firstName, context }) {
   ].filter(Boolean).join("\n");
 }
 
-// Choix du fournisseur : DAN_PROVIDER=gemini|openai, sinon Gemini si sa clé existe, sinon OpenAI.
-export function providerConfig(env = process.env) {
+// Fournisseurs possibles pour DAN, dans l'ordre d'essai : DAN_PROVIDER d'abord, puis Gemini, Groq, OpenRouter (:free), Mistral, OpenAI.
+// Chaque fournisseur dont la clé existe sert de relais si le précédent échoue (clé refusée, modèle absent, quota, panne).
+const GEMINI_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+const compat = (id, url, keyEnv, modelEnv, def) => ({ id, url, keyEnv, modelEnv, def });
+const COMPAT = [
+  compat("groq", "https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", "GROQ_MODEL", "llama-3.3-70b-versatile"),
+  compat("openrouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"),
+  compat("mistral", "https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "MISTRAL_MODEL", "mistral-small-latest")
+];
+
+export function providerChain(env = process.env) {
   const want = String(env.DAN_PROVIDER || "").toLowerCase();
-  const gem = Boolean(env.GEMINI_API_KEY), oai = Boolean(env.OPENAI_API_KEY);
-  const provider = want === "openai" ? "openai" : want === "gemini" ? "gemini" : gem ? "gemini" : "openai";
-  const key = provider === "gemini" ? env.GEMINI_API_KEY : env.OPENAI_API_KEY;
-  const model = env.DAN_MODEL || (provider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-4o-mini");
-  return { provider, configured: Boolean(key), key, model, anyKey: gem || oai };
+  const chain = [];
+  if (env.GEMINI_API_KEY) {
+    const models = [...new Set([env.DAN_MODEL && (want === "gemini" || !want) ? env.DAN_MODEL : null, ...GEMINI_FALLBACKS, "gemini-3.5-flash-lite"].filter(Boolean))];
+    chain.push({ provider: "gemini", key: env.GEMINI_API_KEY, models });
+  }
+  for (const c of COMPAT) if (env[c.keyEnv]) chain.push({ provider: c.id, key: env[c.keyEnv], models: [env[c.modelEnv] || c.def], url: c.url });
+  if (env.OPENAI_API_KEY) chain.push({ provider: "openai", key: env.OPENAI_API_KEY, models: [want === "openai" && env.DAN_MODEL ? env.DAN_MODEL : "gpt-4o-mini"], url: env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions" });
+  if (want) chain.sort((x, y) => (y.provider === want) - (x.provider === want));
+  return chain;
 }
 
-async function callProvider(cfg, system, history, message, signal, env = process.env) {
-  if (cfg.provider === "gemini") {
+export function providerConfig(env = process.env) {
+  const chain = providerChain(env); const first = chain[0];
+  return { provider: first?.provider || "none", configured: chain.length > 0, key: first?.key, model: first?.models[0] || null, anyKey: chain.length > 0, chain: chain.map(c => c.provider) };
+}
+
+async function callOne(step, model, system, history, message, signal, env) {
+  if (step.provider === "gemini") {
     const base = env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models";
-    const generationConfig = { temperature: 0.5, maxOutputTokens: 700 };
-    if (/2\.5/.test(cfg.model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    const generationConfig = { temperature: 0.5, maxOutputTokens: 900 };
+    if (/2\.5/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
     const contents = [...history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })), { role: "user", parts: [{ text: message }] }];
-    const response = await fetch(`${base}/${encodeURIComponent(cfg.model)}:generateContent`, { method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": cfg.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig }) });
+    const response = await fetch(`${base}/${encodeURIComponent(model)}:generateContent`, { method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": step.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig }) });
     if (!response.ok) return { status: response.status };
     const data = await response.json();
     const parts = data?.candidates?.[0]?.content?.parts;
     return { reply: Array.isArray(parts) ? parts.map(part => typeof part?.text === "string" ? part.text : "").join("").trim().slice(0, 4000) : "" };
   }
-  const response = await fetch(env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions", { method: "POST", signal, headers: { "content-type": "application/json", authorization: `Bearer ${cfg.key}` }, body: JSON.stringify({ model: cfg.model, temperature: 0.5, max_completion_tokens: 600, messages: [{ role: "system", content: system }, ...history, { role: "user", content: message }] }) });
+  const openai = step.provider === "openai";
+  const body = { model, temperature: 0.5, messages: [{ role: "system", content: system }, ...history, { role: "user", content: message }] };
+  body[openai ? "max_completion_tokens" : "max_tokens"] = 700;
+  const response = await fetch(step.url, { method: "POST", signal, headers: { "content-type": "application/json", authorization: `Bearer ${step.key}` }, body: JSON.stringify(body) });
   if (!response.ok) return { status: response.status };
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   return { reply: typeof content === "string" ? content.trim().slice(0, 4000) : "" };
+}
+
+// Essaie chaque fournisseur configuré (et, pour Gemini, chaque modèle de secours) jusqu'à la première réponse. Budget global ~9 s.
+export async function callProvider(chain, system, history, message, env = process.env, deadlineMs = TIMEOUT_MS) {
+  const start = Date.now(); const tried = [];
+  for (const step of chain) {
+    for (const model of step.models) {
+      const left = deadlineMs - (Date.now() - start); if (left < 800) return { tried, timeout: true };
+      const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), Math.min(left, chain.length > 1 ? 5500 : left));
+      try {
+        const out = await callOne(step, model, system, history, message, ctl.signal, env);
+        if (out.reply) return { reply: out.reply, provider: step.provider, model, tried };
+        tried.push(`${step.provider}:${out.status || "vide"}`);
+        if (out.status === 401 || out.status === 403 || out.status === 429) break; // inutile de changer de modèle : clé refusée ou quota
+      } catch (e) { tried.push(`${step.provider}:${e?.name === "AbortError" ? "délai" : "réseau"}`); break; }
+      finally { clearTimeout(timer); }
+    }
+  }
+  return { tried };
 }
 
 export function createDan(h) {
@@ -99,7 +139,7 @@ export function createDan(h) {
     return true;
   };
 
-  const status = () => { const c = providerConfig(); return { configured: c.configured, provider: c.provider, model: c.model }; };
+  const status = () => { const c = providerConfig(); return { configured: c.configured, provider: c.provider, model: c.model, chain: c.chain }; };
 
   async function handle(route, req, res) {
     if (route === "/api/dan/status" && req.method === "GET") {
@@ -122,19 +162,20 @@ export function createDan(h) {
     const lang = input.lang === "fr" ? "fr" : "en";
     const history = Array.isArray(input.history) ? input.history.slice(-MAX_HISTORY).filter(m => m && (m.role === "user" || m.role === "assistant")).map(m => ({ role: m.role, content: text(m.content, MAX_HISTORY_CHARS) })).filter(m => m.content) : [];
     const system = buildSystemPrompt({ lang, tier, firstName: user.firstName, context: sanitizeContext(input.context) });
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const out = await callProvider(cfg, system, history, message, controller.signal);
-      if (out.status) { recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: `${cfg.provider} HTTP ${out.status}` }); send(res, 502, { code: "DAN_PROVIDER_ERROR", error: "DAN is temporarily unavailable." }); return true; }
-      const reply = out.reply;
-      if (!reply) { send(res, 502, { code: "DAN_PROVIDER_ERROR", error: "DAN returned no answer." }); return true; }
-      recordAudit({ req, user, event: "dan_message", result: "OK", context: tier });
-      send(res, 200, { reply, tier });
+      const out = await callProvider(providerChain(), system, history, message);
+      if (!out.reply) {
+        const detail = (out.tried || []).join(", ");
+        recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: detail.slice(0, 120) || "none" });
+        send(res, out.timeout && !detail ? 504 : 502, { code: out.timeout && !detail ? "DAN_TIMEOUT" : "DAN_PROVIDER_ERROR", error: "DAN is temporarily unavailable.", detail });
+        return true;
+      }
+      recordAudit({ req, user, event: "dan_message", result: "OK", context: `${tier}/${out.provider}` });
+      send(res, 200, { reply: out.reply, tier, provider: out.provider });
     } catch (error) {
-      const timeout = error?.name === "AbortError";
-      recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: timeout ? "timeout" : "network" });
-      send(res, timeout ? 504 : 502, { code: timeout ? "DAN_TIMEOUT" : "DAN_PROVIDER_ERROR", error: "DAN is temporarily unavailable." });
-    } finally { clearTimeout(timer); }
+      recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: "internal" });
+      send(res, 502, { code: "DAN_PROVIDER_ERROR", error: "DAN is temporarily unavailable.", detail: "internal" });
+    }
     return true;
   }
   return { handle, status };

@@ -145,6 +145,8 @@ export function createBilling(h) {
       const input = await body(req);
       if (typeof input.token !== "string" || !safeEqual(input.token, process.env.OWNER_SETUP_TOKEN)) { recordAudit({ req, user: null, event: "owner_setup_denied", result: "DENIED", context: "bad token" }); return send(res, 403, { error: "Invalid setup token.", code: "OWNER_SETUP_TOKEN_INVALID" }), true; }
       const email = normalizeEmail(input.email);
+      { const lockedEmail = normalizeEmail(process.env.OWNER_EMAIL || ""); if (lockedEmail && email !== lockedEmail) { recordAudit({ req, user: null, event: "owner_setup_denied", result: "DENIED", context: "email not allowed" }); return send(res, 403, { error: "Setup refused.", code: "OWNER_SETUP_REFUSED" }), true; } }
+      { const code = process.env.OWNER_ACCESS_CODE || ""; if (code && !(typeof input.accessCode === "string" && safeEqual(input.accessCode, code))) { recordAudit({ req, user: null, event: "owner_setup_denied", result: "DENIED", context: "bad access code" }); return send(res, 403, { error: "Setup refused.", code: "OWNER_SETUP_REFUSED" }), true; } }
       const password = typeof input.password === "string" ? input.password : "";
       if (!validEmail(email)) return send(res, 400, { error: "Enter a valid email address." }), true;
       if (password.length < OWNER_PASSWORD_MIN || passwordProblem(password, { min: OWNER_PASSWORD_MIN, email })) return send(res, 400, { error: `Owner password must contain at least ${OWNER_PASSWORD_MIN} characters.`, code: "PASSWORD_TOO_SHORT" }), true;

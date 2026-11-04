@@ -103,13 +103,19 @@ svg{display:block}
 /* ---- SPLASH / IGNITION ---------------------------------- */
 #splash{position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   background:radial-gradient(ellipse at 50% 40%,color-mix(in srgb,var(--acc) 8%,var(--bg)),var(--bg) 58%);overflow:hidden;
-  animation:tm-splash-out .55s var(--ease) 1100ms forwards}
+  animation:tm-splash-out .6s var(--ease) 2900ms forwards}
 #splash .splash-grid{position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:66px 66px;mask-image:radial-gradient(circle at center,#000,transparent 66%)}
 #splash::before{content:'';position:absolute;width:min(78vw,540px);height:min(78vw,540px);border:1px solid color-mix(in srgb,var(--acc) 26%,transparent);border-radius:50%;
   box-shadow:0 0 0 30px color-mix(in srgb,var(--acc) 3%,transparent),0 0 120px var(--glow);
   animation:tm-orbit-pulse 7s ease-in-out infinite alternate}
 #introCanvas{position:relative;width:min(560px,100vw);height:230px;opacity:.3}
-.splash-logo{position:relative;width:118px;height:118px;object-fit:contain;border-radius:26px;box-shadow:0 24px 70px rgba(0,0,0,.45);animation:tm-rise .9s var(--ease) both}
+.splash-logo{position:relative;width:118px;height:118px;object-fit:contain;border-radius:26px;box-shadow:0 24px 70px rgba(0,0,0,.45),0 0 60px var(--glow);transform-style:preserve-3d;animation:tm-logo3d 1.9s cubic-bezier(.2,.8,.2,1) both,tm-logofloat 3.4s ease-in-out 1.9s infinite}
+#splash{perspective:900px}
+#splash::after{content:'';position:absolute;width:190px;height:190px;border-radius:50%;border:1px solid color-mix(in srgb,var(--acc) 55%,transparent);transform:rotateX(72deg);box-shadow:0 0 30px var(--glow);animation:tm-ring3d 5s linear infinite;pointer-events:none}
+@keyframes tm-logo3d{0%{opacity:0;transform:rotateY(-540deg) scale(.2)}35%{opacity:1}100%{opacity:1;transform:rotateY(0) scale(1)}}
+@keyframes tm-logofloat{0%,100%{transform:rotateY(-10deg) translateY(0)}50%{transform:rotateY(10deg) translateY(-8px)}}
+@keyframes tm-ring3d{from{transform:rotateX(72deg) rotateZ(0)}to{transform:rotateX(72deg) rotateZ(360deg)}}
+@media (prefers-reduced-motion:reduce){.splash-logo,#splash::after{animation:none!important}}
 .sname{position:relative;font-family:var(--fd);font-weight:700;letter-spacing:6px;font-size:16px;margin-top:6px}
 .stag{position:relative;font:600 9px/1 var(--fm);letter-spacing:3.4px;color:var(--acc);text-transform:uppercase}
 .skipbtn{position:relative;margin-top:18px;background:none;border:1px solid var(--bd);color:var(--txm);font:600 9.5px/1 var(--fm);letter-spacing:2px;text-transform:uppercase;padding:9px 18px;border-radius:20px;cursor:pointer;transition:.2s}
@@ -735,6 +741,150 @@ body{background:var(--bg);font-family:'Space Grotesk',sans-serif}.tm-atmo::befor
 @media(max-width:899px){html body .content{padding-bottom:calc(112px + env(safe-area-inset-bottom,0px))!important}}
 @media(max-width:600px) and (min-width:360px){.statrow,.grid,.lattice,.stream-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:359px){.statrow,.grid,.lattice,.stream-stats{grid-template-columns:minmax(0,1fr)!important}}
+</style>
+<style id="tm-typo">
+/* TYPOGRAPHIE ADAPTATIVE — petits textes +1 px (≤12 px) ou +0,5 px (≤16 px), lisibilité des paragraphes, boutons et champs. */
+.sname{font-size:16.5px}
+.brandtxt{font-size:12px}
+.sub{font-size:13px}
+.sechead .idx{font-size:10px}
+.sechead h2{font-size:11px}
+.banner{font-size:12.5px}
+.btn.sm{font-size:11.5px}
+.tabs button{font-size:10.5px}
+.multitoggle button{font-size:10.5px}
+input,select,textarea{font-size:13.5px}
+.empty .idx{font-size:12px}
+.empty p{font-size:13px}
+.hero .greet{font-size:13px}
+.heroval .delta{font-size:12px}
+.sr-label{font-size:13px}
+.cmprow{font-size:13px}
+.tsym{font-size:13.5px}
+.tpnl{font-size:14px}
+.dirtoggle button{font-size:12px}
+.calcbox{font-size:12.5px}
+.calcbox .cv{font-size:16.5px}
+.smcrow label{font-size:13px}
+.flagrow label{font-size:13px}
+.plan-confluence-help{font-size:11px}
+.plan-confluence-help code{font-size:10px}
+.guardreasons{font-size:12.5px}
+.confluence-head h3{font-size:14px}
+.confluence-head small{font-size:11px}
+.conf-name{font-size:12px}
+.conf-proof{font-size:11px}
+.conf-points{font-size:13px}
+.coachitem p{font-size:13px}
+.tcgrid div b{font-size:12.5px}
+.mcell b{font-size:12px}
+.mtitle{font-size:13px}
+.detrow{font-size:13px}
+.topbar .brandtxt{font-size:11px}
+.pro-chart-card h3{font-size:12px}
+.pro-empty{font-size:12px}
+.pc-panel header b,.pc-section>header b{font-size:13px}
+.pc-table-card h4{font-size:13px}
+.pc-empty p,.pc-empty-small{font-size:13px}
+.pc-matrix td small{font-size:11px}
+.pc-kpi strong{font-size:16.5px}
+.stream-stat b{font-size:15.5px}
+.sigcard header b{font-size:12.5px}
+.sigrow .sv2{font-size:12px}
+.engine-master .em-title{font-size:14.5px}
+.erule .ename{font-size:13px}
+.evtl-title{font-size:13.5px}
+.evtl-body{font-size:13px}
+.cmdk-input input{font-size:15.5px}
+.cmdk-item{font-size:13.5px}
+.tcard .tcmono{font-size:13.5px}
+.tcard h4{font-size:15.5px}
+.tcrole{font-size:10px}
+.tm-statement{font-size:12.5px}
+#tm-command-menu button[data-command-view]{font-size:12px}
+.hero .sub{font-size:13px}
+.stat-val{font-size:15.5px}
+.tcard .tcgrid div b{font-size:13px}
+.formgrid input,.formgrid select,.formgrid textarea,.searchrow input,.searchrow select{font-size:16.5px}
+.pc-kpi strong,.pro-kpi strong{font-size:15.5px}
+.pro-toolbar select,.pro-toolbar input,.pc-toolbar select,.pc-toolbar button{font-size:15.5px}
+.pc-table-scroll td{font-size:13.5px}
+.pc-table-scroll td:first-child{font-size:14.5px}
+.stag,.skipbtn,.brandtxt small,.lbl,.tm-kicker,.tm-rank,.tm-mini,.eyebrow,.tm-owner-entry,.tm-auth-switch small,.tm-plan-head small,.tm-card small,form small,label small,#auth small{font-size:10.5px!important}
+body{line-height:1.6;-webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
+p,li{line-height:1.6}
+button,.btn,[role=button]{min-height:40px;line-height:1.25}
+@media(max-width:600px){input,select,textarea{font-size:max(16px,1em)}}
+#tm-command-menu small,.tm-demo-stat small,.tm-command-grid small{font-size:10px!important}
+/* Raccourcis « font: » : plancher 10 px, sinon +1,5 px (≤12 px) ou +0,5 px */
+.tm-ticker{font-size:11.5px!important}
+.stag{font-size:10.5px!important}
+.skipbtn{font-size:11px!important}
+.brandtxt small{font-size:10px!important}
+.status{font-size:10px!important}
+.empty .lbl{font-size:11px!important}
+.stat-label{font-size:10px!important}
+.hero::before{font-size:10px!important}
+.herolabel{font-size:10.5px!important}
+.sr-flag{font-size:10px!important}
+.sr-metrics{font-size:12px!important}
+.cmptitle{font-size:10.5px!important}
+.cmprow span:first-child{font-size:11.5px!important}
+.tmeta{font-size:11.5px!important}
+.tr{font-size:11.5px!important}
+.fld label{font-size:10px!important}
+.smcgroup .glabel{font-size:10.5px!important}
+.smcrow .w{font-size:11.5px!important}
+.smcscore .sl{font-size:10.5px!important}
+.smcscore .sc{font-size:12px!important}
+.confluence-quality{font-size:11.5px!important}
+.confluence-calc{font-size:11.5px!important}
+.conf-status{font-size:10px!important}
+.conf-weight{font-size:10px!important}
+.ringwrap .inner span{font-size:10px!important}
+.brow{font-size:11.5px!important}
+.coachitem .tag{font-size:10px!important}
+.tcard .demotag{font-size:10px!important}
+.tcrole{font-size:12px!important}
+.tcgrid div span{font-size:10px!important}
+.hlabel{font-size:10.5px!important}
+.matrixtable th{font-size:10px!important}
+.mcell span{font-size:10px!important}
+.mdot{font-size:10.5px!important}
+.mstat{font-size:11.5px!important}
+.detrow span:first-child{font-size:11px!important}
+.toast{font-size:13.5px!important}
+.bottomnav button{font-size:10px!important}
+.sidebar .navlink{font-size:13px!important}
+.pro-toolbar select,.pro-toolbar input{font-size:11.5px!important}
+.pro-toolbar .filter-label{font-size:10px!important}
+.pro-kpi small{font-size:10px!important}
+.pc-toolbar select,.pc-toolbar button{font-size:12.5px!important}
+.pc-toolbar .pc-title{font-size:12.5px!important}
+.pc-kpi span,.pc-kpi small{font-size:10.5px!important}
+.pc-panel header span,.pc-section>header span{font-size:11.5px!important}
+.pc-table-card table{font-size:12.5px!important}
+.pc-table-card thead th{font-size:10.5px!important}
+.orb-core small{font-size:10px!important}
+.orb-core .grade{font-size:12.5px!important}
+.orb-legend span{font-size:10px!important}
+.lcell span{font-size:10px!important}
+.stream-tip{font-size:12px!important}
+.stream-stat span{font-size:10px!important}
+.tm-live{font-size:10px!important}
+.sigcard header span{font-size:10px!important}
+.sigrow .sl2{font-size:11.5px!important}
+.const-nav button{font-size:10.5px!important}
+.engine-master .em-calc{font-size:12px!important}
+.engine-valid{font-size:11.5px!important}
+.erule .enode{font-size:10.5px!important}
+.erule .eproof{font-size:11.5px!important}
+.erule .estatus{font-size:10px!important}
+.erule .eweight{font-size:10px!important}
+.evtl-date{font-size:10px!important}
+.cmdk-input kbd{font-size:10.5px!important}
+.cmdk-item .ci-hint{font-size:10.5px!important}
+.pc-table-scroll td::before{font-size:10px!important}
 </style>
 </head>
 
@@ -2365,12 +2515,12 @@ const minP=Math.min(...candles.map(c=>c.low)),maxP=Math.max(...candles.map(c=>c.
 function y(v){return H-((v-minP)/(maxP-minP))*(H-10)-5;}
 let i=0;
 function drawNext(){
-if(i>=candles.length){setTimeout(closeSplash,450);return;}
+if(i>=candles.length){setTimeout(closeSplash,1100);return;}
 const cw=W/n,x=i*cw+cw*0.22,cwid=cw*0.56,c=candles[i],up=c.close>=c.open;
 ctx.strokeStyle=up?'#3ddc94':'#f2665e';ctx.fillStyle=up?'#3ddc94':'#f2665e';
 ctx.beginPath();ctx.moveTo(x+cwid/2,y(c.high));ctx.lineTo(x+cwid/2,y(c.low));ctx.stroke();
 ctx.fillRect(x,Math.min(y(c.open),y(c.close)),cwid,Math.max(2,Math.abs(y(c.open)-y(c.close))));
-i++;setTimeout(drawNext,50);
+i++;setTimeout(drawNext,110);
 }
 drawNext();
 })();

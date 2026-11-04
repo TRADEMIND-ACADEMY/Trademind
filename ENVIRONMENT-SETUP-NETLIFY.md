@@ -199,3 +199,11 @@ Aucun e-mail n'est simulé. « Mot de passe oublié » passe en mode **ADMIN_ASS
 
 ## Variables à définir
 Voir `.env.example` (noms uniquement). Obligatoire pour le compte OWNER : `OWNER_SETUP_TOKEN`. Recommandé : `PUBLIC_BASE_URL`.
+
+## Sécurité de l'accès Owner (3 verrous)
+| Variable | Rôle |
+|---|---|
+| `OWNER_SETUP_TOKEN` | obligatoire — secret long (40+ car.) pour créer / récupérer l'Owner |
+| `OWNER_EMAIL` | recommandé — seul cet e-mail peut devenir Owner |
+| `OWNER_ACCESS_CODE` | recommandé — 2e secret, distinct du token, demandé à la création et à la récupération |
+Le serveur répond « refusé » sans dire quel verrou a échoué. Après création, le setup est fermé définitivement.

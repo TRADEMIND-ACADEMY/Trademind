@@ -47,3 +47,8 @@
   .data-table td:first-child,.data-table td[data-label="ACTION"]{grid-column:1/-1}
   .pay-act{min-width:0}.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* Lisibilité : texte de base 14 px, aucun texte sous 10,5 px. */
+body{font-size:14px;line-height:1.55}
+.owner-brand small,.owner-pill,.eyebrow{font-size:10.5px}
+.kpi small{font-size:10.5px!important}

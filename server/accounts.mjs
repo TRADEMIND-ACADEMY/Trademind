@@ -135,7 +135,10 @@ export function createAccounts(h) {
       const input = await body(req); const setupToken = process.env.OWNER_SETUP_TOKEN || "";
       if (!setupToken) return send(res, 503, { error: "Owner recovery is disabled until OWNER_SETUP_TOKEN is configured on the server.", code: "OWNER_RECOVERY_DISABLED" }), true;
       const given = typeof input.token === "string" ? input.token : "";
-      const ok = given && crypto.timingSafeEqual(Buffer.from(sha256(given)), Buffer.from(sha256(setupToken)));
+      const accessCode = process.env.OWNER_ACCESS_CODE || ""; const givenCode = typeof input.accessCode === "string" ? input.accessCode : "";
+      const codeOk = !accessCode || (givenCode && crypto.timingSafeEqual(Buffer.from(sha256(givenCode)), Buffer.from(sha256(accessCode))));
+      const lockedEmail = normalizeEmail(process.env.OWNER_EMAIL || "");
+      const ok = given && codeOk && crypto.timingSafeEqual(Buffer.from(sha256(given)), Buffer.from(sha256(setupToken))) && (!lockedEmail || normalizeEmail(input.email) === lockedEmail);
       const users = readUsers(); const ownerId = h.ownerAccountId(); const owner = ownerId ? users[ownerId] : null; const email = normalizeEmail(input.email);
       if (!ok || !owner || normalizeEmail(owner.email) !== email) { recordAudit({ req, user: null, event: "owner_recover_denied", result: "DENIED", context: "invalid token or account" }); return send(res, 403, { error: "Recovery refused.", code: "OWNER_RECOVERY_REFUSED" }), true; }
       const newPassword = typeof input.newPassword === "string" ? input.newPassword : ""; const confirmPassword = typeof input.confirmPassword === "string" ? input.confirmPassword : "";
