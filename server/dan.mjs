@@ -2,6 +2,7 @@
 // Les clés restent dans GEMINI_API_KEY / OPENAI_API_KEY (jamais envoyées au navigateur).
 // Aucune réponse n'est simulée : sans clé, l'API répond DAN_NOT_CONFIGURED.
 
+import crypto from "node:crypto";
 const MAX_MESSAGE = 800;
 const MAX_HISTORY = 8;
 const MAX_HISTORY_CHARS = 1200;
@@ -67,13 +68,13 @@ export function buildSystemPrompt({ lang, tier, firstName, context }) {
   ].filter(Boolean).join("\n");
 }
 
-// Fournisseurs possibles pour DAN, dans l'ordre d'essai : DAN_PROVIDER d'abord, puis Gemini, Groq, OpenRouter (:free), Mistral, OpenAI.
+// Fournisseurs possibles pour DAN, dans l'ordre d'essai : DAN_PROVIDER d'abord, puis Gemini, Groq, OpenRouter, Mistral, OpenAI.
 // Chaque fournisseur dont la clé existe sert de relais si le précédent échoue (clé refusée, modèle absent, quota, panne).
 const GEMINI_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 const compat = (id, url, keyEnv, modelEnv, def) => ({ id, url, keyEnv, modelEnv, def });
 const COMPAT = [
   compat("groq", "https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", "GROQ_MODEL", "llama-3.3-70b-versatile"),
-  compat("openrouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"),
+  compat("openrouter", "https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
   compat("mistral", "https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "MISTRAL_MODEL", "mistral-small-latest")
 ];
 
@@ -164,11 +165,12 @@ export async function callProvider(chain, system, history, message, env = proces
 const PREFIX = { gemini: /^AIza/, groq: /^gsk_/, openrouter: /^sk-or-/, openai: /^sk-/, mistral: /^[A-Za-z0-9]{20,}$/ };
 const classify = (status, why, timeout) => timeout ? "TIMEOUT" : status === 401 || status === 403 || /api key not valid|api_key_invalid/i.test(why || "") ? "AUTH_REFUSED" : status === 429 ? "QUOTA" : status === 404 || /model.*(not found|unavailable|not supported)/i.test(why || "") ? "MODEL_UNAVAILABLE" : status === 400 ? "BAD_REQUEST" : status >= 500 ? "PROVIDER_DOWN" : "UNKNOWN";
 // Test réel de chaque fournisseur, séparément : un seul mini-message, jamais « connecté » sur simple présence d'une clé.
-export async function diagnose(rawEnv = process.env) {
+export async function diagnose(rawEnv = process.env, only = null) {
   const env = cleaned(rawEnv); const results = [];
   const all = [["gemini", "GEMINI_API_KEY"], ["groq", "GROQ_API_KEY"], ["openrouter", "OPENROUTER_API_KEY"], ["mistral", "MISTRAL_API_KEY"], ["openai", "OPENAI_API_KEY"]];
   const chain = providerChain(rawEnv);
   for (const [id, keyName] of all) {
+    if (only && id !== only) continue;
     const raw = rawEnv[keyName]; const step = chain.find(c => c.provider === id);
     const shape = raw ? { variable: keyName, length: String(raw).length, cleanedLength: cleanKey(raw).length, hadQuotesOrSpaces: String(raw) !== cleanKey(raw), looksLikeExpectedFormat: PREFIX[id].test(cleanKey(raw)) } : { variable: keyName, present: false };
     if (!step) { results.push({ provider: id, result: "NOT_CONFIGURED", key: shape }); continue; }
@@ -187,6 +189,13 @@ export async function diagnose(rawEnv = process.env) {
   return results;
 }
 
+// Clés saisies depuis l'espace Owner : chiffrées (AES-256-GCM, clé dérivée de OWNER_SETUP_TOKEN) et jamais renvoyées au navigateur.
+const ENV_OF = { gemini: "GEMINI_API_KEY", groq: "GROQ_API_KEY", openrouter: "OPENROUTER_API_KEY", mistral: "MISTRAL_API_KEY", openai: "OPENAI_API_KEY" };
+const master = () => process.env.OWNER_SETUP_TOKEN ? crypto.scryptSync(process.env.OWNER_SETUP_TOKEN, "tm-dan-keys-v1", 32) : null;
+const enc = (key, text) => { const iv = crypto.randomBytes(12); const c = crypto.createCipheriv("aes-256-gcm", key, iv); const ct = Buffer.concat([c.update(text, "utf8"), c.final()]); return [iv, c.getAuthTag(), ct].map(b => b.toString("base64")).join("."); };
+const dec = (key, packed) => { const [iv, tag, ct] = String(packed).split(".").map(x => Buffer.from(x, "base64")); const d = crypto.createDecipheriv("aes-256-gcm", key, iv); d.setAuthTag(tag); return Buffer.concat([d.update(ct), d.final()]).toString("utf8"); };
+export function storedKeys(readConfig) { const key = master(); if (!key || !readConfig) return {}; const raw = readConfig().danKeys || {}; const out = {}; for (const [id, packed] of Object.entries(raw)) { if (!ENV_OF[id]) continue; try { out[ENV_OF[id]] = dec(key, packed); } catch { /* clé de chiffrement changée */ } } return out; }
+
 export function createDan(h) {
   const { send, body, currentUser, effectiveMembership, recordAudit, ownerRequired } = h;
   // Quotas persistants (communs à toutes les instances) : par utilisateur (fenêtre + jour) ET plafond global quotidien (coût maîtrisé).
@@ -198,8 +207,9 @@ export function createDan(h) {
     return true;
   };
 
-  const status = () => { const c = providerConfig(); return { configured: c.configured, provider: c.provider, model: c.model, chain: c.chain }; };
+  const status = () => { const c = providerConfig(liveEnv()); return { configured: c.configured, provider: c.provider, model: c.model, chain: c.chain }; };
 
+  const liveEnv = () => ({ ...process.env, ...storedKeys(h.readConfig) });
   async function handle(route, req, res) {
     if (route === "/api/dan/status" && req.method === "GET") {
       const user = currentUser(req); if (!user) { send(res, 401, { error: "Authentication required." }); return true; }
@@ -209,15 +219,26 @@ export function createDan(h) {
     }
     if (route === "/api/owner/dan-diagnostic" && req.method === "POST") {
       const owner = ownerRequired(req, res); if (!owner) return true;
-      const results = await diagnose(); recordAudit({ req, user: owner, event: "dan_diagnostic", result: "OK", context: results.map(r => `${r.provider}:${r.result}`).join(",").slice(0, 150) });
+      const results = await diagnose(liveEnv()); recordAudit({ req, user: owner, event: "dan_diagnostic", result: "OK", context: results.map(r => `${r.provider}:${r.result}`).join(",").slice(0, 150) });
       send(res, 200, { results, note: "Chaque fournisseur est testé séparément avec un vrai message. Aucune clé n'est affichée." }); return true;
+    }
+    if (route === "/api/owner/dan-keys" && req.method === "POST") {
+      const owner = ownerRequired(req, res); if (!owner) return true;
+      const input = await body(req); const id = String(input.provider || ""); const mk = master();
+      if (!ENV_OF[id]) { send(res, 400, { error: "Unknown provider." }); return true; }
+      if (!mk) { send(res, 409, { error: "OWNER_SETUP_TOKEN must be set on the server to store keys securely." }); return true; }
+      if (input.remove === true) { const cfg = h.readConfig(); const keys = { ...(cfg.danKeys || {}) }; delete keys[id]; h.writeConfig({ ...cfg, danKeys: keys }); recordAudit({ req, user: owner, event: "dan_key_removed", result: "OK", context: id }); send(res, 200, { ok: true }); return true; }
+      const value = cleanKey(input.key); if (value.length < 8 || value.length > 400) { send(res, 400, { error: "Invalid key value." }); return true; }
+      const cfg = h.readConfig(); h.writeConfig({ ...cfg, danKeys: { ...(cfg.danKeys || {}), [id]: enc(mk, value) } });
+      recordAudit({ req, user: owner, event: "dan_key_saved", result: "OK", context: id });
+      const [result] = await diagnose(liveEnv(), id); send(res, 200, { ok: true, result }); return true;
     }
     if (route !== "/api/dan/chat" || req.method !== "POST") return false;
     const user = currentUser(req); if (!user) { send(res, 401, { error: "Authentication required." }); return true; }
     const membership = effectiveMembership(user);
     const tier = membership.plan === "ELITE" ? "SOVEREIGN" : membership.plan === "PRO" ? "COACH" : null;
     if (!tier) { recordAudit({ req, user, event: "dan_access_denied", result: "DENIED", context: membership.plan }); send(res, 403, { code: "DAN_LOCKED", error: "DAN is available with ASCEND or SOVEREIGN." }); return true; }
-    const cfg = providerConfig();
+    const cfg = providerConfig(liveEnv());
     if (!cfg.configured) { send(res, 503, { code: "DAN_NOT_CONFIGURED", error: "DAN AI is not configured on the server (GEMINI_API_KEY or OPENAI_API_KEY missing)." }); return true; }
     const input = await body(req);
     const message = text(input.message, MAX_MESSAGE);
@@ -227,7 +248,7 @@ export function createDan(h) {
     const history = Array.isArray(input.history) ? input.history.slice(-MAX_HISTORY).filter(m => m && (m.role === "user" || m.role === "assistant")).map(m => ({ role: m.role, content: text(m.content, MAX_HISTORY_CHARS) })).filter(m => m.content) : [];
     const system = buildSystemPrompt({ lang, tier, firstName: user.firstName, context: sanitizeContext(input.context) });
     try {
-      const out = await callProvider(providerChain(), system, normalizeHistory(history), message);
+      const out = await callProvider(providerChain(liveEnv()), system, normalizeHistory(history), message, liveEnv());
       if (!out.reply) {
         const detail = (out.tried || []).join(", ");
         recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: detail.slice(0, 120) || "none" });

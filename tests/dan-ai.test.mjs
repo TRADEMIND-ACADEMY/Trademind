@@ -1,6 +1,6 @@
 // Tests de la conversation DAN avec de faux fournisseurs (réseau simulé : aucune clé réelle n'est utilisée ici).
 import assert from "node:assert/strict";
-import { providerChain, callProvider, cleanKey, normalizeHistory, diagnose } from "../server/dan.mjs";
+import { createDan, storedKeys, providerChain, callProvider, cleanKey, normalizeHistory, diagnose } from "../server/dan.mjs";
 let pass = 0, fail = 0; const t = async (n, f) => { try { await f(); pass++; console.log("  PASS ", n); } catch (e) { fail++; console.log("  FAIL ", n, "\n        ", e.message); } };
 const real = globalThis.fetch; const calls = [];
 const GOOD = "AIzaGoodKey1234567890abcdef";
@@ -30,5 +30,20 @@ await t("relais : Gemini refusé (clé fausse) -> OpenRouter répond ; l'erreur 
 await t("aucun fournisseur valide : pas de fausse réponse, cause lisible par fournisseur, pas de boucle", async () => { calls.length = 0; const r = await chat({ GEMINI_API_KEY: "AIzaBAD", OPENROUTER_API_KEY: "x", OPENAI_API_KEY: "sk-bad" }, "Salut"); assert.ok(!r.reply); assert.ok(r.tried.length <= 5, r.tried.join()); assert.match(r.tried.join(), /openai:401 clé invalide/); assert.ok(calls.length <= 5); });
 await t("diagnostic : chaque fournisseur testé séparément, secrets jamais renvoyés", async () => { const env = { GEMINI_API_KEY: `'${GOOD}'`, OPENROUTER_API_KEY: "sk-or-v1-wrong", OPENAI_API_KEY: "sk-bad" }; const d = await diagnose(env); const by = Object.fromEntries(d.map(x => [x.provider, x])); assert.equal(by.gemini.result, "CONNECTED"); assert.equal(by.gemini.key.hadQuotesOrSpaces, true); assert.equal(by.openrouter.result, "AUTH_REFUSED"); assert.equal(by.openai.result, "AUTH_REFUSED"); assert.equal(by.groq.result, "NOT_CONFIGURED"); assert.ok(typeof by.gemini.latencyMs === "number"); const dump = JSON.stringify(d); assert.ok(!dump.includes(GOOD) && !dump.includes("sk-bad") && !dump.includes("goodgood")); });
 await t("Gemini 429 sur un modèle : DAN essaie le modèle suivant au lieu d'abandonner", async () => { const saved = globalThis.fetch; let n = 0; globalThis.fetch = async (u) => ++n === 1 ? new Response(JSON.stringify({ error: { message: "You exceeded your current quota" } }), { status: 429 }) : new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Bonjour !" }] } }] }), { status: 200 }); const r = await callProvider(providerChain({ GEMINI_API_KEY: GOOD }), "s", [], "Salut", {}); globalThis.fetch = saved; assert.equal(r.reply, "Bonjour !"); assert.ok(r.tried[0].startsWith("gemini:429")); });
+await t("Owner : clé collée -> chiffrée au repos, jamais renvoyée, testée pour de vrai, puis DAN répond avec elle", async () => {
+  process.env.OWNER_SETUP_TOKEN = "t".repeat(40); delete process.env.GEMINI_API_KEY; let cfg = {}; const out = []; const saved = globalThis.fetch;
+  globalThis.fetch = async (u, init = {}) => String(u).includes("api.groq.com") && init.headers.authorization === "Bearer gsk_owner_good_key" ? new Response(JSON.stringify({ choices: [{ message: { content: "Bonjour ! Comment puis-je t'aider ?" } }] })) : new Response(JSON.stringify({ error: { message: "Invalid API Key" } }), { status: 401 });
+  const send = (res, code, json) => out.push({ code, json });
+  const h = { send, body: async req => req.body, currentUser: () => ({ id: "u1", firstName: "D" }), effectiveMembership: () => ({ plan: "ELITE" }), recordAudit() {}, limitHit: () => ({ ok: true }), tooMany() {}, ownerRequired: () => ({ id: "o" }), readConfig: () => cfg, writeConfig: c => { cfg = c; } };
+  const dan = createDan(h);
+  await dan.handle("/api/owner/dan-keys", { method: "POST", body: { provider: "groq", key: ' "gsk_owner_good_key"\n' } }, {});
+  assert.equal(out.at(-1).code, 200); assert.equal(out.at(-1).json.result.result, "CONNECTED"); assert.ok(!JSON.stringify(out.at(-1).json).includes("gsk_owner"));
+  assert.ok(!JSON.stringify(cfg).includes("gsk_owner"), "stocké en clair !"); assert.equal(storedKeys(() => cfg).GROQ_API_KEY, "gsk_owner_good_key");
+  await dan.handle("/api/dan/chat", { method: "POST", body: { message: "Salut", lang: "fr" } }, {});
+  assert.equal(out.at(-1).code, 200); assert.match(out.at(-1).json.reply, /Comment puis-je/); assert.equal(out.at(-1).json.provider, "groq");
+  await dan.handle("/api/owner/dan-keys", { method: "POST", body: { provider: "groq", key: "gsk_wrong_wrong" } }, {});
+  assert.equal(out.at(-1).json.result.result, "AUTH_REFUSED");
+  await dan.handle("/api/owner/dan-keys", { method: "POST", body: { provider: "groq", remove: true } }, {}); assert.deepEqual(storedKeys(() => cfg), {});
+  globalThis.fetch = saved; });
 globalThis.fetch = real;
 console.log(`RÉSULTAT: ${pass} réussis, ${fail} échoués`); process.exit(fail ? 1 : 0);
