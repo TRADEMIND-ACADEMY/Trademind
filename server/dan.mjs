@@ -92,7 +92,7 @@ export function providerChain(rawEnv = process.env) {
   const want = String(env.DAN_PROVIDER || "").toLowerCase();
   const chain = [];
   if (env.GEMINI_API_KEY) {
-    const models = [...new Set([env.DAN_MODEL && (want === "gemini" || !want) ? env.DAN_MODEL : null, ...GEMINI_FALLBACKS, "gemini-3.5-flash-lite"].filter(Boolean))];
+    const models = [...new Set([env.DAN_MODEL && (want === "gemini" || !want) ? env.DAN_MODEL : null, ...GEMINI_FALLBACKS, "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-3.5-flash-lite"].filter(Boolean))];
     chain.push({ provider: "gemini", key: env.GEMINI_API_KEY, models });
   }
   for (const c of COMPAT) if (env[c.keyEnv]) chain.push({ provider: c.id, key: env[c.keyEnv], models: [env[c.modelEnv] || c.def], url: c.url });
@@ -153,7 +153,7 @@ export async function callProvider(chain, system, history, message, env = proces
         const out = await callOne(step, model, system, history, message, ctl.signal, env);
         if (out.reply) return { reply: out.reply, provider: step.provider, model, tried };
         tried.push(`${step.provider}:${out.status || "vide"}${out.why ? " " + short(out.why) : ""}`);
-        if (out.status === 401 || out.status === 403 || out.status === 429 || (out.status === 400 && /key|location|region/i.test(out.why || ""))) break; // inutile de changer de modèle : clé refusée ou quota
+        if (out.status === 401 || out.status === 403 || (out.status === 429 && step.provider !== "gemini") || (out.status === 400 && /key|location|region/i.test(out.why || ""))) break; // inutile de changer de modèle : clé refusée ou quota
       } catch (e) { tried.push(`${step.provider}:${e?.name === "AbortError" ? "délai" : "réseau"}`); break; }
       finally { clearTimeout(timer); }
     }
