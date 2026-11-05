@@ -40,6 +40,14 @@ export function sanitizeContext(input) {
   return out;
 }
 
+// Historique valide pour tous les fournisseurs : commence par « user », alterne user/assistant.
+export function normalizeHistory(history) {
+  const out = [];
+  for (const m of history) { if (!out.length && m.role !== "user") continue; const last = out[out.length - 1]; if (last && last.role === m.role) last.content = (last.content + "\n" + m.content).slice(0, 2400); else out.push({ role: m.role, content: m.content }); }
+  if (out.length && out[out.length - 1].role === "user") out.pop(); // le dernier message utilisateur est ajouté séparément
+  return out;
+}
+
 export function buildSystemPrompt({ lang, tier, firstName, context }) {
   const fr = lang === "fr";
   const persona = tier === "SOVEREIGN"
@@ -69,7 +77,18 @@ const COMPAT = [
   compat("mistral", "https://api.mistral.ai/v1/chat/completions", "MISTRAL_API_KEY", "MISTRAL_MODEL", "mistral-small-latest")
 ];
 
-export function providerChain(env = process.env) {
+// Tolère les valeurs Netlify mal collées : guillemets, espaces, retours à la ligne, « NOM=valeur », « Bearer ».
+export function cleanKey(v) {
+  let x = String(v ?? "").trim();
+  x = x.replace(/^[A-Z_]{4,40}\s*=\s*/, "").replace(/^bearer\s+/i, "");
+  x = x.replace(/^["'`\u201c\u2018]+|["'`\u201d\u2019]+$/g, "").replace(/\s+/g, "");
+  return x;
+}
+const KEYS = ["GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "OPENAI_API_KEY"];
+const cleaned = env => { const e = { ...env }; for (const k of KEYS) if (e[k] !== undefined) { const c = cleanKey(e[k]); if (c) e[k] = c; else delete e[k]; } return e; };
+
+export function providerChain(rawEnv = process.env) {
+  const env = cleaned(rawEnv);
   const want = String(env.DAN_PROVIDER || "").toLowerCase();
   const chain = [];
   if (env.GEMINI_API_KEY) {
@@ -87,6 +106,11 @@ export function providerConfig(env = process.env) {
   return { provider: first?.provider || "none", configured: chain.length > 0, key: first?.key, model: first?.models[0] || null, anyKey: chain.length > 0, chain: chain.map(c => c.provider) };
 }
 
+async function whyOf(response) {
+  try { const t = await response.text(); let m = t; try { const j = JSON.parse(t); m = j?.error?.message || j?.message || t; } catch {} return String(m).replace(/(AIza|sk-|gsk_)[A-Za-z0-9_-]{6,}/g, "[clé]").replace(/\s+/g, " ").slice(0, 200); } catch { return ""; }
+}
+const short = why => /api key not valid|api_key_invalid|invalid api key|incorrect api key|no auth|user not found|unauthorized/i.test(why) ? "clé invalide" : /location|region|country/i.test(why) ? "région non supportée" : /model/i.test(why) && /not found|not supported|does not exist|unavailable/i.test(why) ? "modèle indisponible" : /quota|rate|limit|exhaust/i.test(why) ? "quota" : /billing|payment|credit/i.test(why) ? "crédit/facturation" : String(why || "").slice(0, 40);
+
 async function callOne(step, model, system, history, message, signal, env) {
   if (step.provider === "gemini") {
     const base = env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models";
@@ -102,7 +126,7 @@ async function callOne(step, model, system, history, message, signal, env) {
           if (alt) { const r2 = await fetch(`${base}/${encodeURIComponent(alt)}:generateContent`, { method: "POST", signal, headers: { "content-type": "application/json", "x-goog-api-key": step.key }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig }) }); if (r2.ok) { const d2 = await r2.json(); const p2 = d2?.candidates?.[0]?.content?.parts; return { reply: Array.isArray(p2) ? p2.map(x => typeof x?.text === "string" ? x.text : "").join("").trim().slice(0, 4000) : "" }; } }
         } catch { /* on retombe sur le statut d'origine */ }
       }
-      return { status: response.status };
+      return { status: response.status, why: await whyOf(response) };
     }
     const data = await response.json();
     const parts = data?.candidates?.[0]?.content?.parts;
@@ -112,7 +136,7 @@ async function callOne(step, model, system, history, message, signal, env) {
   const body = { model, temperature: 0.5, messages: [{ role: "system", content: system }, ...history, { role: "user", content: message }] };
   body[openai ? "max_completion_tokens" : "max_tokens"] = 700;
   const response = await fetch(step.url, { method: "POST", signal, headers: { "content-type": "application/json", authorization: `Bearer ${step.key}` }, body: JSON.stringify(body) });
-  if (!response.ok) return { status: response.status };
+  if (!response.ok) return { status: response.status, why: await whyOf(response) };
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   return { reply: typeof content === "string" ? content.trim().slice(0, 4000) : "" };
@@ -128,8 +152,8 @@ export async function callProvider(chain, system, history, message, env = proces
       try {
         const out = await callOne(step, model, system, history, message, ctl.signal, env);
         if (out.reply) return { reply: out.reply, provider: step.provider, model, tried };
-        tried.push(`${step.provider}:${out.status || "vide"}`);
-        if (out.status === 401 || out.status === 403 || out.status === 429) break; // inutile de changer de modèle : clé refusée ou quota
+        tried.push(`${step.provider}:${out.status || "vide"}${out.why ? " " + short(out.why) : ""}`);
+        if (out.status === 401 || out.status === 403 || out.status === 429 || (out.status === 400 && /key|location|region/i.test(out.why || ""))) break; // inutile de changer de modèle : clé refusée ou quota
       } catch (e) { tried.push(`${step.provider}:${e?.name === "AbortError" ? "délai" : "réseau"}`); break; }
       finally { clearTimeout(timer); }
     }
@@ -137,8 +161,34 @@ export async function callProvider(chain, system, history, message, env = proces
   return { tried };
 }
 
+const PREFIX = { gemini: /^AIza/, groq: /^gsk_/, openrouter: /^sk-or-/, openai: /^sk-/, mistral: /^[A-Za-z0-9]{20,}$/ };
+const classify = (status, why, timeout) => timeout ? "TIMEOUT" : status === 401 || status === 403 || /api key not valid|api_key_invalid/i.test(why || "") ? "AUTH_REFUSED" : status === 429 ? "QUOTA" : status === 404 || /model.*(not found|unavailable|not supported)/i.test(why || "") ? "MODEL_UNAVAILABLE" : status === 400 ? "BAD_REQUEST" : status >= 500 ? "PROVIDER_DOWN" : "UNKNOWN";
+// Test réel de chaque fournisseur, séparément : un seul mini-message, jamais « connecté » sur simple présence d'une clé.
+export async function diagnose(rawEnv = process.env) {
+  const env = cleaned(rawEnv); const results = [];
+  const all = [["gemini", "GEMINI_API_KEY"], ["groq", "GROQ_API_KEY"], ["openrouter", "OPENROUTER_API_KEY"], ["mistral", "MISTRAL_API_KEY"], ["openai", "OPENAI_API_KEY"]];
+  const chain = providerChain(rawEnv);
+  for (const [id, keyName] of all) {
+    const raw = rawEnv[keyName]; const step = chain.find(c => c.provider === id);
+    const shape = raw ? { variable: keyName, length: String(raw).length, cleanedLength: cleanKey(raw).length, hadQuotesOrSpaces: String(raw) !== cleanKey(raw), looksLikeExpectedFormat: PREFIX[id].test(cleanKey(raw)) } : { variable: keyName, present: false };
+    if (!step) { results.push({ provider: id, result: "NOT_CONFIGURED", key: shape }); continue; }
+    let r = null;
+    for (const model of step.models) {
+      const t0 = Date.now(); const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 8000);
+      try { const out = await callOne(step, model, "Tu es un test de connexion.", [], "Réponds uniquement : OK", ctl.signal, env); const ms = Date.now() - t0;
+        if (out.reply) { r = { provider: id, result: "CONNECTED", model, latencyMs: ms, key: shape, sample: out.reply.slice(0, 30) }; break; }
+        r = { provider: id, result: classify(out.status, out.why), status: out.status || null, model, latencyMs: ms, message: out.why || (out.status ? "" : "réponse vide"), key: shape };
+        if (r.result === "AUTH_REFUSED" || r.result === "QUOTA") break;
+      } catch (e) { r = { provider: id, result: classify(0, "", e?.name === "AbortError"), model, latencyMs: Date.now() - t0, message: e?.name === "AbortError" ? "délai dépassé" : "réseau", key: shape }; break; }
+      finally { clearTimeout(timer); }
+    }
+    results.push(r);
+  }
+  return results;
+}
+
 export function createDan(h) {
-  const { send, body, currentUser, effectiveMembership, recordAudit } = h;
+  const { send, body, currentUser, effectiveMembership, recordAudit, ownerRequired } = h;
   // Quotas persistants (communs à toutes les instances) : par utilisateur (fenêtre + jour) ET plafond global quotidien (coût maîtrisé).
   const GLOBAL_DAY_MAX = Math.max(50, Number(process.env.DAN_GLOBAL_DAILY_MAX) || 3000);
   const check = (userId, req, res) => {
@@ -157,6 +207,11 @@ export function createDan(h) {
       send(res, 200, { ...status(), access: membership.plan === "PRO" ? "COACH" : membership.plan === "ELITE" ? "SOVEREIGN" : "LOCKED" });
       return true;
     }
+    if (route === "/api/owner/dan-diagnostic" && req.method === "POST") {
+      const owner = ownerRequired(req, res); if (!owner) return true;
+      const results = await diagnose(); recordAudit({ req, user: owner, event: "dan_diagnostic", result: "OK", context: results.map(r => `${r.provider}:${r.result}`).join(",").slice(0, 150) });
+      send(res, 200, { results, note: "Chaque fournisseur est testé séparément avec un vrai message. Aucune clé n'est affichée." }); return true;
+    }
     if (route !== "/api/dan/chat" || req.method !== "POST") return false;
     const user = currentUser(req); if (!user) { send(res, 401, { error: "Authentication required." }); return true; }
     const membership = effectiveMembership(user);
@@ -172,7 +227,7 @@ export function createDan(h) {
     const history = Array.isArray(input.history) ? input.history.slice(-MAX_HISTORY).filter(m => m && (m.role === "user" || m.role === "assistant")).map(m => ({ role: m.role, content: text(m.content, MAX_HISTORY_CHARS) })).filter(m => m.content) : [];
     const system = buildSystemPrompt({ lang, tier, firstName: user.firstName, context: sanitizeContext(input.context) });
     try {
-      const out = await callProvider(providerChain(), system, history, message);
+      const out = await callProvider(providerChain(), system, normalizeHistory(history), message);
       if (!out.reply) {
         const detail = (out.tried || []).join(", ");
         recordAudit({ req, user, event: "dan_provider_error", result: "FAILED", context: detail.slice(0, 120) || "none" });

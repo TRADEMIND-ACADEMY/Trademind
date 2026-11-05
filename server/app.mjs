@@ -113,7 +113,7 @@ const activeMembership = user => !effectiveMembership(user).expired && PAID_PLAN
 const billing = createBilling({ roleFor, send, body, currentUser, ownerRequired, recordAudit, safeUser, effectiveMembership, normalizePlan, hash, verifyPassword, loginAllowed, clearLoginAttempts, authResponse, readUsers, writeUsers, readOrders, writeOrders, readNotes, writeNotes, readConfig, writeConfig, readSessions, writeSessions, ownerIds, clientIp, limitHit, tooMany, claimUnique });
 const accounts = createAccounts({ isMobile, purgeJournal, send, body, currentUser, sessionId, sessionKey, readUsers, writeUsers, readSessions, writeSessions, readResets, writeResets, readLedger, writeLedger, readOrders, writeOrders, recordAudit, roleFor, safeUser, effectiveMembership, PLANS, startSession, clearSessionCookies, limitHit, limitCount, limitFail, limitClear, tooMany, claimUnique, releaseClaim, billing, ownerRequired, clientIp, tradeMindId, ownerAccountId: () => billing.ownerAccountId() });
 const sync = createSync({ send, body, currentUser, readJournal, writeJournal, readLedger, writeLedger, effectiveMembership, PLANS, limitHit, tooMany, recordAudit, roleFor });
-const dan = createDan({ send, body, currentUser, effectiveMembership, recordAudit, limitHit, tooMany });
+const dan = createDan({ send, body, currentUser, effectiveMembership, recordAudit, limitHit, tooMany, ownerRequired });
 
 async function api(req, res) {
   configCache = null;
