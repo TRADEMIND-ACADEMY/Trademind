@@ -1,13 +1,11 @@
+
 name: Extraire un ZIP du dépôt
 
-# Utilisation : onglet Actions > "Extraire un ZIP du dépôt" > Run workflow > saisir le nom du ZIP (ex. TRADEMIND-ACADEMY-WEB-UNIFIED.zip).
-# Le contenu est extrait à la racine du dépôt, le ZIP est supprimé, puis le tout est enregistré (commit).
-# Rien n'est écrasé sans trace : tout est dans l'historique Git et peut être annulé.
 on:
   workflow_dispatch:
     inputs:
       zip_name:
-        description: "Nom exact du fichier ZIP à la racine du dépôt"
+        description: "Nom exact du ZIP à la racine du dépôt"
         required: true
         default: "TRADEMIND-ACADEMY-WEB-UNIFIED.zip"
 
@@ -17,33 +15,94 @@ permissions:
 jobs:
   extract:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Extraire
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Vérifier et extraire le ZIP
         env:
           ZIP_NAME: ${{ inputs.zip_name }}
         run: |
-          set -e
-          case "$ZIP_NAME" in */*|*..*|"") echo "::error::Nom de fichier invalide"; exit 1;; esac
-          [ -f "$ZIP_NAME" ] || { echo "::error::Fichier introuvable à la racine : $ZIP_NAME"; ls -la; exit 1; }
-          rm -rf /tmp/unz && mkdir /tmp/unz
-          unzip -q "$ZIP_NAME" -x ".git/*" "node_modules/*" -d /tmp/unz
-          # Si le ZIP contient un seul dossier racine, on prend son contenu
-          n=$(find /tmp/unz -mindepth 1 -maxdepth 1 | wc -l)
-          if [ "$n" -eq 1 ] && [ -d "$(find /tmp/unz -mindepth 1 -maxdepth 1)" ]; then src="$(find /tmp/unz -mindepth 1 -maxdepth 1)"; else src=/tmp/unz; fi
-          # GitHub interdit à ce workflow de modifier .github/workflows : on le met de côté
-          if [ -d "$src/.github" ]; then echo "::warning::Le dossier .github du ZIP n'est pas copié (droit refusé par GitHub). Ajoutez-le à la main : Add file > Create new file."; rm -rf "$src/.github"; fi
-          cp -a "$src"/. .
-          rm -f "$ZIP_NAME"
-          echo "Contenu à la racine :"; ls
+          set -euo pipefail
 
-      - name: Enregistrer (commit + push)
+          # Vérifier le nom
+          case "$ZIP_NAME" in
+            */*|*..*|"")
+              echo "::error::Nom de fichier invalide"
+              exit 1
+              ;;
+          esac
+
+          # Vérifier l'existence
+          if [ ! -f "$ZIP_NAME" ]; then
+            echo "::error::ZIP introuvable à la racine"
+            ls -lah
+            exit 1
+          fi
+
+          # Informations du fichier
+          echo "=== Fichier sélectionné ==="
+          ls -lh "$ZIP_NAME"
+          file "$ZIP_NAME"
+
+          # Vérifier l'intégrité
+          echo "=== Test de l'archive ==="
+          if ! unzip -tq "$ZIP_NAME"; then
+            echo "::error::ZIP invalide ou endommagé. Aucun fichier ne sera extrait."
+            exit 1
+          fi
+
+          # Préparer extraction
+          rm -rf /tmp/unz
+          mkdir -p /tmp/unz
+
+          unzip -q "$ZIP_NAME" \
+            -x ".git/*" "node_modules/*" \
+            -d /tmp/unz
+
+          # Protéger les dossiers Git et dépendances
+          find /tmp/unz -type d \( -name ".git" -o -name "node_modules" \) -prune -exec rm -rf {} +
+
+          # Détecter un dossier racine unique
+          n=$(find /tmp/unz -mindepth 1 -maxdepth 1 | wc -l)
+
+          if [ "$n" -eq 1 ] && [ -d "$(find /tmp/unz -mindepth 1 -maxdepth 1)" ]; then
+            src="$(find /tmp/unz -mindepth 1 -maxdepth 1)"
+          else
+            src=/tmp/unz
+          fi
+
+          # Préserver les configurations GitHub existantes
+          if [ -d "$src/.github" ]; then
+            echo "::warning::Le dossier .github du ZIP est ignoré."
+            rm -rf "$src/.github"
+          fi
+
+          # Copier les fichiers
+          cp -a "$src"/. .
+
+          # Supprimer le ZIP après extraction réussie
+          rm -f "$ZIP_NAME"
+
+          echo "=== Extraction terminée ==="
+          ls -lah
+
+      - name: Enregistrer les modifications
         run: |
+          set -e
+
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
+
           git add -A
-          git diff --cached --quiet && { echo "Rien à enregistrer"; exit 0; }
+
+          if git diff --cached --quiet; then
+            echo "Aucune modification à enregistrer."
+            exit 0
+          fi
+
           git commit -m "Extraction du ZIP ${{ inputs.zip_name }}"
+
           git push
           
