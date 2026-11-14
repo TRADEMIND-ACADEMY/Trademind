@@ -1,4 +1,4 @@
-/* TRADEMIND ACADEMY — synchronisation du journal du site avec le compte (API commune site + mobile).
+/* TRADEMIND ACADEMY : synchronisation du journal du site avec le compte (API commune site + mobile).
    Utilise tmsync-core.js (même noyau que l'application mobile). Le serveur est la source de vérité ; localStorage reste un cache.
    Mode DÉMO : aucune requête, aucun envoi (jeu de données de démonstration jamais synchronisé). */
 (function () {
@@ -94,7 +94,7 @@
   var chip = null;
   function render(s) {
     if (!chip) return; var key = s.state, label, tone = "#9aa3b2";
-    var map = { ok: [tr("Synchronisé", "Synced"), "#3ccf91"], syncing: [tr("Synchronisation…", "Syncing…"), "#9aa3b2"], offline: [tr("Hors ligne — données gardées", "Offline — data kept"), "#e0b341"], error: [tr("Erreur de synchro", "Sync error"), "#e5484d"], conflict: [tr("Conflit : version du compte appliquée", "Conflict: account version applied"), "#e0b341"], attention: [tr("Certaines données restent locales", "Some data stays local"), "#e0b341"], demo: [tr("Démo — non synchronisée", "Demo — not synced"), "#9aa3b2"], signedout: [tr("Non connecté", "Signed out"), "#9aa3b2"], idle: [tr("Synchro…", "Sync…"), "#9aa3b2"] };
+    var map = { ok: [tr("Synchronisé", "Synced"), "#3ccf91"], syncing: [tr("Synchronisation…", "Syncing…"), "#9aa3b2"], offline: [tr("Hors ligne : données gardées", "Offline : data kept"), "#e0b341"], error: [tr("Erreur de synchro", "Sync error"), "#e5484d"], conflict: [tr("Conflit : version du compte appliquée", "Conflict: account version applied"), "#e0b341"], attention: [tr("Certaines données restent locales", "Some data stays local"), "#e0b341"], demo: [tr("Démo : non synchronisée", "Demo : not synced"), "#9aa3b2"], signedout: [tr("Non connecté", "Signed out"), "#9aa3b2"], idle: [tr("Synchro…", "Sync…"), "#9aa3b2"] };
     var m = map[key] || map.idle; label = m[0]; tone = m[1];
     chip.textContent = ""; var dot = document.createElement("i"); dot.style.cssText = "display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:" + tone; chip.appendChild(dot); chip.appendChild(document.createTextNode(label));
     chip.title = key === "conflict" ? tr("Une modification faite ailleurs a remplacé une version locale (conservée). Touchez pour acquitter.", "An edit made elsewhere replaced a local version (kept). Tap to acknowledge.") : tr("Touchez pour synchroniser maintenant", "Tap to sync now");

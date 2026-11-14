@@ -1,4 +1,4 @@
-/* TradeMind — notifications intégrées (toast / confirmation / information).
+/* TradeMind : notifications intégrées (toast / confirmation / information).
    Remplace les fenêtres natives du navigateur (alert / confirm). Aucune dépendance. */
 (function () {
   "use strict";
@@ -10,7 +10,7 @@
     ".tmui-toasts{position:fixed;z-index:2147483000;left:0;right:0;top:calc(10px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 12px}",
     ".tmui-toast{pointer-events:auto;display:flex;align-items:flex-start;gap:10px;max-width:min(420px,100%);width:max-content;padding:11px 14px;border-radius:14px;border:1px solid var(--border,var(--bd,rgba(255,255,255,.14)));background:var(--surface-elevated,var(--surface2,#1c1917));color:var(--text-primary,var(--text,var(--tx,#f4f0f6)));font:500 13px/1.4 var(--fb,Manrope,system-ui,sans-serif);box-shadow:0 14px 40px rgba(0,0,0,.35);opacity:0;transform:translateY(-8px);transition:opacity .22s ease,transform .22s ease}",
     ".tmui-toast.show{opacity:1;transform:none}",
-    ".tmui-toast i{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--fb,system-ui,sans-serif);font-style:normal;margin-top:1px;color:#0c0a09;background:var(--accent,#a78bfa)}",
+    ".tmui-toast i{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--fb,system-ui,sans-serif);font-style:normal;margin-top:1px;color:#0c0a09;background:var(--accent,#9FB0C4)}",
     ".tmui-toast.success i{background:var(--success,var(--ok,var(--good,#4ade80)))}",
     ".tmui-toast.error i{background:var(--danger,var(--bad,#f87171))}",
     ".tmui-toast.warn i{background:var(--warning,var(--warn,#f59e0b))}",
@@ -23,9 +23,9 @@
     ".tmui-dialog p{margin:0;color:var(--text-secondary,var(--muted,var(--txm,#a1a1aa)));white-space:pre-line;overflow-wrap:anywhere}",
     ".tmui-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}",
     ".tmui-btn{appearance:none;border:1px solid var(--border,var(--bd,rgba(255,255,255,.18)));background:transparent;color:inherit;border-radius:10px;padding:9px 16px;font:600 13px/1 var(--fb,Manrope,system-ui,sans-serif);cursor:pointer;min-height:38px}",
-    ".tmui-btn.primary{background:var(--accent,#a78bfa);border-color:transparent;color:#0c0a09}",
+    ".tmui-btn.primary{background:var(--accent,#9FB0C4);border-color:transparent;color:#0c0a09}",
     ".tmui-btn.danger{background:var(--danger,var(--bad,#f87171));border-color:transparent;color:#0c0a09}",
-    ".tmui-btn:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px}",
+    ".tmui-btn:focus-visible{outline:2px solid var(--accent,#9FB0C4);outline-offset:2px}",
     "@media(prefers-reduced-motion:reduce){.tmui-toast,.tmui-overlay,.tmui-dialog{transition:none}}"
   ].join("");
   var style = document.createElement("style"); style.id = "tmui-style"; style.textContent = css;

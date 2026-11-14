@@ -1,0 +1,3 @@
+Déposez ici l'APK Android sous le nom exact : TradeMind-Academy.apk
+Le site affichera alors automatiquement le bouton « Télécharger pour Android » (adresse : /downloads/TradeMind-Academy.apk).
+Alternative : renseignez l'adresse d'un APK hébergé ailleurs (ex. GitHub Releases) dans products/public-site/assets/site-config.js (champ android).

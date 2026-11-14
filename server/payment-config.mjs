@@ -13,7 +13,7 @@ export const PLANS = {
     priceUsdMonthly: 2.5,
     tradeLimit: 30,
     description: "Growth & Intelligence",
-    features: ["Analytics avancés", "Evolution", "Matrix", "DAN Coach", "Reviews avancées", "Discipline & Plan adherence"]
+    features: ["Tout FOUNDATION", "Analytics avancés", "Evolution", "Matrix", "Reviews avancées", "Discipline & Plan adherence"]
   },
   "PRO MAX": {
     code: "PRO MAX",
@@ -21,7 +21,7 @@ export const PLANS = {
     priceUsdMonthly: 5,
     tradeLimit: 50,
     description: "Advanced Analysis",
-    features: ["Analyses historiques", "Matrix avancée", "Calendar", "Data Quality", "Contribution", "Reporting avancé"]
+    features: ["Tout ASCEND", "DAN Coach", "Analyses historiques", "Matrix avancée", "Calendar & Data Quality", "Contribution", "Reporting avancé"]
   },
   ELITE: {
     code: "ELITE",

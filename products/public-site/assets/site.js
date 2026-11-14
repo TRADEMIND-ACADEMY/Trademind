@@ -27,7 +27,7 @@
   const mobileMenu = document.getElementById('mobileMenu'); const siteNav = document.querySelector('.site-nav'); mobileMenu?.addEventListener('click', () => { const open = siteNav?.classList.toggle('open'); mobileMenu.setAttribute('aria-expanded', String(Boolean(open))); }); siteNav?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { siteNav.classList.remove('open'); mobileMenu?.setAttribute('aria-expanded','false'); }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && siteNav?.classList.contains('open')) { siteNav.classList.remove('open'); mobileMenu?.setAttribute('aria-expanded','false'); mobileMenu?.focus(); } });
   setLang(localStorage.getItem('tm_public_lang') || 'fr');
-  setTheme(localStorage.getItem('tm_public_theme') || 'day');
+  setTheme(localStorage.getItem('tm_public_theme') || 'night');
 })();
 
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));

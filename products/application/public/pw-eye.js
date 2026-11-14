@@ -1,4 +1,4 @@
-/* TRADEMIND — bouton « afficher / masquer » sur tous les champs mot de passe (site, application, Owner), y compris les champs créés dynamiquement.
+/* TRADEMIND : bouton « afficher / masquer » sur tous les champs mot de passe (site, application, Owner), y compris les champs créés dynamiquement.
    Accessible : vrai <button>, aria-label FR/EN, aria-pressed, cible tactile 40 px, clavier (Tab / Espace / Entrée), focus et curseur conservés.
    Le mot de passe est de nouveau masqué à l'envoi du formulaire et quand l'onglet passe en arrière-plan. Aucune journalisation de la valeur. */
 (function () {

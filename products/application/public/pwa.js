@@ -3,7 +3,7 @@
   if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
   const fr = () => (window.tmLang ? window.tmLang() : (navigator.language || "").startsWith("fr") ? "fr" : "en") === "fr";
   let bar = null;
-  const show = () => { if (bar) return; bar = document.createElement("div"); bar.setAttribute("role", "status"); bar.style.cssText = "position:fixed;left:12px;right:12px;bottom:70px;z-index:9800;padding:10px 14px;border-radius:12px;background:#2b2233;color:#fff;font:600 13px/1.4 system-ui,sans-serif;text-align:center;border:1px solid rgba(255,255,255,.2)"; bar.textContent = fr() ? "Hors ligne — connexion, paiements et synchronisation nécessitent Internet." : "Offline — sign-in, payments and sync need the internet."; document.body.appendChild(bar); };
+  const show = () => { if (bar) return; bar = document.createElement("div"); bar.setAttribute("role", "status"); bar.style.cssText = "position:fixed;left:12px;right:12px;bottom:70px;z-index:9800;padding:10px 14px;border-radius:12px;background:#2b2233;color:#fff;font:600 13px/1.4 system-ui,sans-serif;text-align:center;border:1px solid rgba(255,255,255,.2)"; bar.textContent = fr() ? "Hors ligne : connexion, paiements et synchronisation nécessitent Internet." : "Offline : sign-in, payments and sync need the internet."; document.body.appendChild(bar); };
   const hide = () => { bar?.remove(); bar = null; };
   addEventListener("offline", show); addEventListener("online", hide); if (!navigator.onLine) addEventListener("DOMContentLoaded", show);
 })();

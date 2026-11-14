@@ -1,4 +1,4 @@
-/* TRADEMIND ACADEMY — noyau de synchronisation (identique côté site et côté application mobile).
+/* TRADEMIND ACADEMY : noyau de synchronisation (identique côté site et côté application mobile).
  * Le serveur est la source de vérité ; le stockage local n'est qu'un cache.
  * - Les modifications locales sont détectées par comparaison avec la dernière version synchronisée (empreinte) : pas de file fragile.
  * - Les suppressions sont explicites (noteDelete) : un état local vide ne supprime JAMAIS les données du compte (elles sont relues).
